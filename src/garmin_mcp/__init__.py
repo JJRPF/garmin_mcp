@@ -452,12 +452,16 @@ def main():
             file=sys.stderr,
         )
 
-    # When serving over HTTP, expose a plain health endpoint for k8s probes.
-    # The MCP endpoint itself requires a handshake and isn't probe-friendly.
+    # When serving over HTTP, expose plain health endpoints for probes (e.g. Render, k8s).
+    # Render probes / by default or /healthz if configured.
     if transport != "stdio":
+        import warnings
+        warnings.filterwarnings("ignore", message=".*lifespan.*")
+        
         from starlette.requests import Request
         from starlette.responses import PlainTextResponse
 
+        @fastmcp.custom_route("/", methods=["GET"])
         @fastmcp.custom_route("/healthz", methods=["GET"])
         async def healthz(_request: "Request") -> "PlainTextResponse":
             return PlainTextResponse("ok")

@@ -4,6 +4,7 @@ services:
     runtime: docker
     plan: free
     region: oregon
+    healthCheckPath: /healthz
     envVars:
       - key: GARMIN_MCP_TRANSPORT
         value: streamable-http
@@ -11,3 +12,4 @@ services:
         value: 0.0.0.0
       - key: GARMIN_TOKENS_BASE64
         sync: false
+
