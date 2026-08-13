@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: garmin-mcp
+    runtime: docker
+    plan: free
+    region: oregon
+    envVars:
+      - key: GARMIN_MCP_TRANSPORT
+        value: streamable-http
+      - key: GARMIN_MCP_HOST
+        value: 0.0.0.0
+      - key: GARMIN_TOKENS_BASE64
+        sync: false

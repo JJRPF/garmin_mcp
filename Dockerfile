@@ -32,13 +32,13 @@ COPY pytest.ini ./
 RUN mkdir -p /root/.garminconnect && \
     chmod 700 /root/.garminconnect
 
-# Expose the HTTP port. The image defaults to stdio (Claude Desktop, Inspector);
-# set GARMIN_MCP_TRANSPORT=streamable-http to serve over this port (e.g. in k8s).
-# EXPOSE 8000
+# Copy entrypoint script
+COPY entrypoint.sh ./
+RUN chmod +x entrypoint.sh
 
-# Set the entrypoint to run the MCP server
-ENTRYPOINT ["garmin-mcp"]
+# Expose HTTP port
+EXPOSE 8000
 
-# Health check (optional - adjust based on your needs)
-# HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-#   CMD python -c "import sys; sys.exit(0)"
+# Set the entrypoint
+ENTRYPOINT ["/app/entrypoint.sh"]
+
