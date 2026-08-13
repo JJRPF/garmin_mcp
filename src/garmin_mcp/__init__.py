@@ -230,24 +230,23 @@ def init_api(email, password):
     email = _normalize_optional_user_config(email, "garmin_email")
     password = _normalize_optional_user_config(password, "garmin_password")
 
-    try:
-        # Using Oauth1 and OAuth2 token files from directory
-        print(
-            f"Trying to login to Garmin Connect using token data from directory '{tokenstore}'...\n",
-            file=sys.stderr,
-        )
+    token_target = tokenstore
+    env_b64 = os.getenv("GARMIN_TOKENS_BASE64")
+    if env_b64:
+        try:
+            token_target = base64.b64decode(env_b64.strip()).decode()
+            print("Using Garmin OAuth tokens from GARMIN_TOKENS_BASE64 environment variable...\n", file=sys.stderr)
+        except Exception as err:
+            print(f"Warning: Failed to decode GARMIN_TOKENS_BASE64: {err}\n", file=sys.stderr)
 
-        # Using Oauth1 and Oauth2 tokens from base64 encoded string
-        # print(
-        #     f"Trying to login to Garmin Connect using token data from file '{tokenstore_base64}'...\n"
-        # )
-        # dir_path = os.path.expanduser(tokenstore_base64)
-        # with open(dir_path, "r") as token_file:
-        #     tokenstore = token_file.read()
+    try:
+        if not env_b64:
+            print(
+                f"Trying to login to Garmin Connect using token data from directory '{tokenstore}'...\n",
+                file=sys.stderr,
+            )
 
         # Suppress stderr AND stdout during token validation.
-        # garminconnect may print progress dots (e.g. ".") to stdout; any write
-        # to stdout before the MCP server starts corrupts the JSON-RPC framing.
         old_stderr = sys.stderr
         old_stdout = sys.stdout
         sys.stderr = io.StringIO()
@@ -255,7 +254,7 @@ def init_api(email, password):
 
         try:
             garmin = Garmin(is_cn=is_cn)
-            garmin.login(tokenstore)
+            garmin.login(token_target)
         finally:
             sys.stderr = old_stderr
             sys.stdout = old_stdout
