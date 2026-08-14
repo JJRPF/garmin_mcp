@@ -501,7 +501,7 @@ def main():
             f"Serving unified MCP (SSE & Streamable HTTP) on {http_host}:{http_port}",
             file=sys.stderr,
         )
-        combined_app = Starlette(routes=combined_routes)
+        combined_app = Starlette(routes=combined_routes, lifespan=streamable_app.router.lifespan_context)
         uvicorn.run(combined_app, host=http_host, port=http_port)
     else:
         app.run(transport=transport)
