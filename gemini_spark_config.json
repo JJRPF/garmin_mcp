@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "garmin-connect": {
+      "url": "https://YOUR-RENDER-APP-NAME.onrender.com/sse",
+      "transport": "sse"
+    }
+  }
+}

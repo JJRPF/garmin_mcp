@@ -1,3 +1,13 @@
+---
+title: Garmin MCP Server
+emoji: 🏃
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 [![MseeP.ai Security Assessment Badge](https://mseep.net/pr/taxuspt-garmin-mcp-badge.png)](https://mseep.ai/app/taxuspt-garmin-mcp)
 
 # Garmin MCP Server

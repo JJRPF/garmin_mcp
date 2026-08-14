@@ -36,7 +36,8 @@ RUN mkdir -p /root/.garminconnect && \
 COPY entrypoint.sh ./
 RUN chmod +x entrypoint.sh
 
-# Expose HTTP port
+# Expose HTTP ports (7860 for Hugging Face Spaces, 8000 for standard)
+EXPOSE 7860
 EXPOSE 8000
 
 # Set the entrypoint
