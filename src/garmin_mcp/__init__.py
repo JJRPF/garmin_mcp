@@ -157,18 +157,43 @@ class _GarminProxy:
         return _call
 
 
+class _LazyGarminProxy:
+    """Lazily initializes the Garmin client on first access.
+
+    This ensures web servers (Uvicorn / FastMCP) start in milliseconds
+    so cloud container health checks pass instantly without waiting for network API calls.
+    """
+
+    def __init__(self, init_fn):
+        self._init_fn = init_fn
+        self._client = None
+
+    def _get_client(self):
+        if self._client is None:
+            raw = self._init_fn()
+            if not raw:
+                raise RuntimeError(
+                    "Garmin authentication required. "
+                    "Ensure GARMIN_TOKENS_BASE64 or GARMIN_EMAIL and GARMIN_PASSWORD are set."
+                )
+            self._client = _GarminProxy(raw)
+        return self._client
+
+    def __getattr__(self, name):
+        return getattr(self._get_client(), name)
+
+
 def _parse_transport_config() -> tuple[str, str, int]:
     """Read and validate HTTP transport env vars. Raises ValueError on bad input."""
-    transport = os.getenv("GARMIN_MCP_TRANSPORT", "stdio").strip().lower()
+    default_transport = "streamable-http" if os.getenv("PORT") else "stdio"
+    transport = os.getenv("GARMIN_MCP_TRANSPORT", default_transport).strip().lower()
     if transport not in _VALID_TRANSPORTS:
         raise ValueError(
             f"Invalid GARMIN_MCP_TRANSPORT {transport!r}; "
             f"expected one of {', '.join(_VALID_TRANSPORTS)}"
         )
-    # Bind to loopback by default: the HTTP transport performs no authentication,
-    # so a 0.0.0.0 default would expose full read/write access to the user's
-    # Garmin account to the whole network. Opt in explicitly with GARMIN_MCP_HOST.
-    http_host = os.getenv("GARMIN_MCP_HOST", "127.0.0.1")
+    default_host = "0.0.0.0" if os.getenv("PORT") else "127.0.0.1"
+    http_host = os.getenv("GARMIN_MCP_HOST", default_host)
     http_port = int(os.getenv("GARMIN_MCP_PORT", os.getenv("PORT", "8000")))
     return transport, http_host, http_port
 
@@ -386,16 +411,8 @@ def main():
         print(str(exc), file=sys.stderr)
         sys.exit(1)
 
-    # Initialize Garmin client
-    garmin_client = init_api(email, password)
-    if not garmin_client:
-        print("Failed to initialize Garmin Connect client. Exiting.", file=sys.stderr)
-        return
-
-    print("Garmin Connect client initialized successfully.", file=sys.stderr)
-
-    # Wrap client so runtime auth/rate-limit errors surface as clear messages
-    garmin_client = _GarminProxy(garmin_client)
+    # Initialize Garmin client lazily so web servers start in milliseconds
+    garmin_client = _LazyGarminProxy(lambda: init_api(email, password))
 
     # Configure all modules with the Garmin client
     activity_management.configure(garmin_client)
