@@ -431,9 +431,10 @@ def main():
     courses.configure(garmin_client)
     activity_analysis.configure(garmin_client)
 
-    # Create the MCP app, wrapped so the env-var filter can drop tools.
-    # host/port only matter for the HTTP transports; stdio ignores them.
-    fastmcp = FastMCP("Garmin Connect v1.0", host=http_host, port=http_port)
+    from mcp.server.transport_security import TransportSecuritySettings
+
+    sec_settings = TransportSecuritySettings(enable_dns_rebinding_protection=False)
+    fastmcp = FastMCP("Garmin Connect v1.0", host=http_host, port=http_port, transport_security=sec_settings)
     app = _ToolFilter(fastmcp, enabled_tools, disabled_tools)
     if enabled_tools:
         print(f"Tool filter: allowlist of {len(enabled_tools)} tool(s).", file=sys.stderr)
@@ -468,27 +469,42 @@ def main():
             file=sys.stderr,
         )
 
-    # When serving over HTTP, expose plain health endpoints for probes (e.g. Render, k8s).
-    # Render probes / by default or /healthz if configured.
+    # When serving over HTTP, expose a unified Starlette app supporting SSE, Streamable HTTP, and health checks
     if transport != "stdio":
         import warnings
-        warnings.filterwarnings("ignore", message=".*lifespan.*")
-        
-        from starlette.requests import Request
+        import uvicorn
+        from starlette.applications import Starlette
+        from starlette.routing import Route
         from starlette.responses import PlainTextResponse
 
-        @fastmcp.custom_route("/", methods=["GET"])
-        @fastmcp.custom_route("/healthz", methods=["GET"])
-        async def healthz(_request: "Request") -> "PlainTextResponse":
+        warnings.filterwarnings("ignore", message=".*lifespan.*")
+
+        async def healthz(_request):
             return PlainTextResponse("ok")
 
+        sse_app = fastmcp.sse_app()
+        streamable_app = fastmcp.streamable_http_app()
+
+        combined_routes = [
+            Route("/", healthz, methods=["GET"]),
+            Route("/healthz", healthz, methods=["GET"]),
+        ]
+
+        seen = set()
+        for r in sse_app.routes + streamable_app.routes:
+            p = getattr(r, "path", str(r))
+            if p not in seen:
+                seen.add(p)
+                combined_routes.append(r)
+
         print(
-            f"Serving MCP over {transport} on {http_host}:{http_port}",
+            f"Serving unified MCP (SSE & Streamable HTTP) on {http_host}:{http_port}",
             file=sys.stderr,
         )
-
-    # Run the MCP server
-    app.run(transport=transport)
+        combined_app = Starlette(routes=combined_routes)
+        uvicorn.run(combined_app, host=http_host, port=http_port)
+    else:
+        app.run(transport=transport)
 
 
 if __name__ == "__main__":
